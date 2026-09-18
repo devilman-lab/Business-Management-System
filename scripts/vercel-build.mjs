@@ -13,6 +13,8 @@
 import { spawnSync } from "node:child_process";
 
 const env = { ...process.env };
+// サンプルデータの日付を業務上の基準タイムゾーン (既定: 日本時間) で生成する (src/instrumentation.ts と同じ既定値)
+env.TZ ??= env.APP_TIMEZONE ?? "Asia/Tokyo";
 const isDbUrl = (v) => typeof v === "string" && /^(postgres|postgresql|prisma|prisma\+postgres):\/\//.test(v);
 const isDirectUrl = (v) => typeof v === "string" && /^(postgres|postgresql):\/\//.test(v);
 

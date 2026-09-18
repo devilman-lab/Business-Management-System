@@ -132,6 +132,10 @@ Prisma は `provider` を環境変数で切り替えられないため、モデ�
   `npx prisma migrate dev --schema prisma/postgres/schema.prisma --name <変更名>` を実行し、生成された SQL をコミットする
 - Vercel のビルド (`scripts/vercel-build.mjs`) は `DATABASE_URL` / `DIRECT_URL` を Storage 連携の変数名 (`POSTGRES_PRISMA_URL`, `DATABASE_URL_UNPOOLED` など) から補完する
 
+### タイムゾーン
+
+サーバー (Vercel は UTC) とブラウザ (JST) で日時整形がずれないよう、`src/instrumentation.ts` で起動時に `process.env.TZ` を `APP_TIMEZONE` (既定 `Asia/Tokyo`) に固定します。ビルド時のサンプルデータ生成 (`scripts/vercel-build.mjs`) も同じ値を使います。多タイムゾーン運用が必要になった場合は、UTC 保存 + ユーザーごとの表示 TZ へ移行します。
+
 ### 接続の堅牢性
 
 `src/server/db.ts` の Prisma Client は、接続確立に失敗した場合 (P1001 / P1002 / P2024) のみ短い待機後に再試行します。

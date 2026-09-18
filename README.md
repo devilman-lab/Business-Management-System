@@ -195,6 +195,7 @@ npm run dev          # 開発サーバー起動
 | `FILE_STORAGE_PROVIDER` | – | 未設定時は Vercel 上で自動的に `database` (DB 内保存)。S3 等を使う場合は Provider を追加して指定 |
 | `ANTHROPIC_API_KEY` | – | 設定すると AI 支援が Claude による生成に切り替わります |
 | `SEED_ON_BUILD` | – | `0` にするとビルド時のサンプルデータ投入を行いません |
+| `APP_TIMEZONE` | – | サーバーの基準タイムゾーン (既定 `Asia/Tokyo`)。日時表示と「本日期限」の判定に使用 |
 
 ### 運用上の注意
 
