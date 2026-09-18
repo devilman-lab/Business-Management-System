@@ -1,0 +1,309 @@
+// ============================================================
+// このファイルは scripts/sync-postgres-schema.mjs により
+// prisma/schema.prisma から自動生成されます。直接編集しないでください。
+// ============================================================
+
+// ============================================================
+// 業務管理システム デモ - データモデル
+//
+// 基本構造:
+//   User ─┬─ Customer ─ Project ─┬─ Task
+//         │                      ├─ Activity(対応履歴)
+//         │                      ├─ ProjectFile(関連ファイル)
+//         │                      └─ AuditLog(変更履歴)
+//         └─ Session
+//
+// 担当者は氏名の文字列ではなく User.id で関連付ける。
+// SQLite で動作するが、provider を postgresql に変更すれば本番DBへ移行可能。
+// ============================================================
+
+generator client {
+  provider      = "prisma-client-js"
+  // Vercel (Amazon Linux 2023) 向けのエンジンを同梱する
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // マイグレーション用の直接接続 (コネクションプーラーを経由しない)
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------- 列挙型 ----------
+
+enum Role {
+  ADMIN // 管理者
+  MEMBER // 一般ユーザー
+}
+
+enum UserStatus {
+  ACTIVE // 有効
+  INACTIVE // 無効(退職・休職など)
+}
+
+enum CustomerStatus {
+  PROSPECT // 見込み
+  ACTIVE // 取引中
+  DORMANT // 休眠
+  CLOSED // 取引終了
+}
+
+enum ProjectStatus {
+  NOT_STARTED // 未着手
+  IN_PROGRESS // 進行中
+  WAITING_REVIEW // 確認待ち
+  ON_HOLD // 保留
+  COMPLETED // 完了
+}
+
+enum Priority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum TaskStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum ActivityType {
+  PHONE // 電話
+  EMAIL // メール
+  VISIT // 訪問
+  ONLINE_MEETING // オンライン会議
+  INTERNAL // 社内対応
+  OTHER // その他
+}
+
+enum FileCategory {
+  ESTIMATE // 見積書
+  CONTRACT // 契約書
+  PROPOSAL // 提案資料
+  OTHER // その他資料
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  IMPORT
+  EXPORT
+}
+
+// ---------- ユーザー / 認証 ----------
+
+model User {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  department   String?
+  role         Role       @default(MEMBER)
+  status       UserStatus @default(ACTIVE)
+  lastLoginAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  sessions          Session[]
+  assignedCustomers Customer[]    @relation("CustomerAssignee")
+  createdCustomers  Customer[]    @relation("CustomerCreator")
+  assignedProjects  Project[]     @relation("ProjectAssignee")
+  createdProjects   Project[]     @relation("ProjectCreator")
+  assignedTasks     Task[]        @relation("TaskAssignee")
+  createdTasks      Task[]        @relation("TaskCreator")
+  activities        Activity[]
+  uploadedFiles     ProjectFile[]
+  auditLogs         AuditLog[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ---------- 顧客・取引先 ----------
+
+model Customer {
+  id           String         @id @default(cuid())
+  code         String         @unique // 顧客コード (C-0001)
+  name         String // 顧客名(会社名)
+  nameKana     String?
+  contactName  String? // 先方担当者
+  contactTitle String? // 先方担当者 役職
+  phone        String?
+  email        String?
+  address      String?
+  industry     String?
+  status       CustomerStatus @default(PROSPECT)
+  notes        String?
+  assigneeId   String? // 社内担当者
+  assignee     User?          @relation("CustomerAssignee", fields: [assigneeId], references: [id])
+  createdById  String?
+  createdBy    User?          @relation("CustomerCreator", fields: [createdById], references: [id])
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  projects   Project[]
+  activities Activity[]
+  auditLogs  AuditLog[]
+
+  @@index([assigneeId])
+  @@index([status])
+}
+
+// ---------- 案件・プロジェクト ----------
+
+model Project {
+  id          String        @id @default(cuid())
+  code        String        @unique // 案件番号 (PJ-2026-001)
+  name        String
+  description String?
+  customerId  String
+  customer    Customer      @relation(fields: [customerId], references: [id])
+  assigneeId  String?
+  assignee    User?         @relation("ProjectAssignee", fields: [assigneeId], references: [id])
+  status      ProjectStatus @default(NOT_STARTED)
+  priority    Priority      @default(MEDIUM)
+  progress    Int           @default(0) // 0-100
+  startDate   DateTime?
+  dueDate     DateTime?
+  completedAt DateTime?
+  budget      Int? // 予算(円)
+  createdById String?
+  createdBy   User?         @relation("ProjectCreator", fields: [createdById], references: [id])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  tasks      Task[]
+  activities Activity[]
+  files      ProjectFile[]
+  auditLogs  AuditLog[]
+
+  @@index([customerId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+// ---------- タスク ----------
+
+model Task {
+  id          String     @id @default(cuid())
+  projectId   String
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  assigneeId  String?
+  assignee    User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  status      TaskStatus @default(NOT_STARTED)
+  priority    Priority   @default(MEDIUM)
+  dueDate     DateTime?
+  completedAt DateTime?
+  createdById String?
+  createdBy   User?      @relation("TaskCreator", fields: [createdById], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([projectId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+// ---------- 対応履歴 ----------
+
+model Activity {
+  id         String       @id @default(cuid())
+  customerId String
+  customer   Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  projectId  String?
+  project    Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  userId     String // 対応者
+  user       User         @relation(fields: [userId], references: [id])
+  type       ActivityType @default(OTHER)
+  occurredAt DateTime     @default(now())
+  title      String
+  content    String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([customerId, occurredAt])
+  @@index([projectId, occurredAt])
+  @@index([userId])
+}
+
+// ---------- ファイル (メタデータのみ。実体はストレージプロバイダが管理) ----------
+
+model ProjectFile {
+  id              String       @id @default(cuid())
+  projectId       String
+  project         Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String // 表示名(元ファイル名)
+  category        FileCategory @default(OTHER)
+  mimeType        String
+  size            Int
+  storageProvider String       @default("local") // local | s3 | gcs ...
+  storageKey      String // プロバイダ内のキー
+  description     String?
+  uploadedById    String?
+  uploadedBy      User?        @relation(fields: [uploadedById], references: [id])
+  createdAt       DateTime     @default(now())
+
+  @@index([projectId])
+}
+
+// ---------- 監査ログ ----------
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  userId      String?
+  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      AuditAction
+  entityType  String // customer | project | task | activity | file | user | setting | session
+  entityId    String?
+  entityLabel String? // 表示用ラベル(削除後も表示できるように保持)
+  changes     String? // JSON: [{ field, label, before, after }]
+  summary     String? // 一文の要約 (例: ステータスを「進行中」→「確認待ち」に変更)
+  projectId   String? // 案件詳細の変更履歴表示用
+  project     Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  customerId  String?
+  customer    Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  ipAddress   String?
+  createdAt   DateTime    @default(now())
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@index([projectId])
+  @@index([customerId])
+  @@index([userId])
+}
+
+// ---------- システム設定 ----------
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// ---------- ファイル実体 (FILE_STORAGE_PROVIDER=database のときのみ使用) ----------
+// 外部ストレージ (S3 等) を使わない環境向け。ProjectFile.storageKey がこの id を指す。
+
+model FileBlob {
+  id        String   @id @default(cuid())
+  data      Bytes
+  size      Int
+  mimeType  String
+  createdAt DateTime @default(now())
+}
