@@ -95,7 +95,7 @@ export function SettingsView({ settings, system }: { settings: SystemSettings; s
                 columns={1}
                 items={[
                   { label: "データベース", value: system.database },
-                  { label: "ファイルストレージ", value: system.storage === "local" ? "ローカルディスク (S3等へ切替可能)" : system.storage },
+                  { label: "ファイルストレージ", value: system.storage === "local" ? "ローカルディスク (S3等へ切替可能)" : system.storage === "database" ? "データベース内保存 (S3等へ切替可能)" : system.storage },
                   { label: "AI支援", value: system.ai },
                   {
                     label: "登録件数",
