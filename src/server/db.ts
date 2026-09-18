@@ -2,11 +2,18 @@ import { Prisma, PrismaClient } from "@prisma/client";
 
 /**
  * 接続文字列の解決。
- * ローカルは DATABASE_URL (SQLite)。Vercel の Storage 連携 (Neon / Supabase 等) では
- * POSTGRES_PRISMA_URL / POSTGRES_URL という名前で提供されることがあるため順に探す。
+ * ローカルは DATABASE_URL (SQLite)。Vercel の Storage 連携では提供元によって変数名が異なる
+ * (Neon: DATABASE_URL、Prisma Postgres: PRISMA_DATABASE_URL / POSTGRES_URL、Supabase: POSTGRES_PRISMA_URL 等)
+ * ため、候補名を順に見た後、名前のパターンと値の形式 (postgres:// 等) で探索する。
+ * ※ scripts/vercel-build.mjs と同じ規則
  */
+const URL_CANDIDATES = ["DATABASE_URL", "PRISMA_DATABASE_URL", "POSTGRES_PRISMA_URL", "POSTGRES_URL", "DATABASE_URL_UNPOOLED", "POSTGRES_URL_NON_POOLING"];
+const isDbUrl = (v: string | undefined): v is string => typeof v === "string" && /^(postgres|postgresql|prisma|prisma\+postgres|file):/.test(v);
+
 export function resolveDatabaseUrl(): string | undefined {
-  return process.env.DATABASE_URL ?? process.env.POSTGRES_PRISMA_URL ?? process.env.POSTGRES_URL;
+  for (const k of URL_CANDIDATES) if (isDbUrl(process.env[k])) return process.env[k];
+  for (const [k, v] of Object.entries(process.env)) if (/(DATABASE|POSTGRES|PRISMA|PG)/i.test(k) && isDbUrl(v)) return v;
+  return undefined;
 }
 
 /**

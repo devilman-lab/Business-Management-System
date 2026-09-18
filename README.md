@@ -179,8 +179,8 @@ npm run dev          # 開発サーバー起動
    ビルドコマンドは `vercel.json` で `node scripts/vercel-build.mjs` に固定されています (マイグレーション → 初回のみサンプルデータ投入 → ビルド)。
    ※ この時点ではデータベースが無いためビルドは失敗します。次の手順で接続してください。
 
-3. **PostgreSQL を接続** (プロジェクトの *Storage* タブ → *Create Database* → **Neon** (無料枠あり) を選択 → Connect)
-   `DATABASE_URL` などの環境変数が自動で追加されます。リージョンは Vercel の Functions リージョン (`vercel.json` では東京 `hnd1`) に近いものを選ぶと応答が速くなります。
+3. **PostgreSQL を接続** (プロジェクトの *Storage* タブ → *Create Database* → **Prisma Postgres** または **Neon** (どちらも無料枠あり) を選択 → Connect)
+   接続文字列の環境変数が自動で追加されます (Prisma Postgres は `PRISMA_DATABASE_URL` と `POSTGRES_URL`、Neon は `DATABASE_URL` と `DATABASE_URL_UNPOOLED`)。ビルドスクリプトがこれらを自動検出するため、手動で `DATABASE_URL` を作る必要はありません。リージョンは Vercel の Functions リージョン (`vercel.json` では東京 `hnd1`) に近いものを選ぶと応答が速くなります。
    Neon 以外 (Supabase / Vercel Postgres / 任意の PostgreSQL) でも、`DATABASE_URL` (接続文字列) を環境変数に設定すれば動作します。
 
 4. **再デプロイ** (*Deployments* → 最新のデプロイ → *Redeploy*)
@@ -190,7 +190,7 @@ npm run dev          # 開発サーバー起動
 
 | 変数 | 必須 | 説明 |
 | --- | --- | --- |
-| `DATABASE_URL` | ○ | PostgreSQL の接続文字列 (Storage 連携で自動設定。プーラー経由の URL 可) |
+| `DATABASE_URL` | ○ | PostgreSQL の接続文字列。Storage 連携が別名で設定する場合 (Prisma Postgres: `PRISMA_DATABASE_URL` / `POSTGRES_URL`、Supabase: `POSTGRES_PRISMA_URL` 等) も自動で検出します。`prisma+postgres://` 形式 (Prisma Postgres) と `postgres://` 形式のどちらも可 |
 | `DIRECT_URL` | – | マイグレーション用の直接接続。未設定なら `DATABASE_URL_UNPOOLED` → `POSTGRES_URL_NON_POOLING` → `DATABASE_URL` の順に自動で使用 |
 | `FILE_STORAGE_PROVIDER` | – | 未設定時は Vercel 上で自動的に `database` (DB 内保存)。S3 等を使う場合は Provider を追加して指定 |
 | `ANTHROPIC_API_KEY` | – | 設定すると AI 支援が Claude による生成に切り替わります |
